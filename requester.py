@@ -60,8 +60,8 @@ def getSingleChannelPath(type):
          return SHOW_SINGLE_CHANNEL_PATH
 
 def get_section_channels(modeType):
-    channelUrl = VVVVID_BASE_URL + getChannelsPath(modeType) 
-    response = getJsonDataFromUrl(channelUrl)    
+    channelUrl = VVVVID_BASE_URL + getChannelsPath(modeType)
+    response = getJsonDataFromUrl(channelUrl)
     data = json.loads(response.read().decode(response.info().getparam('charset') or 'utf-8'))
     channels = data['data']
     listChannels = []
@@ -77,16 +77,16 @@ def get_section_channels(modeType):
             for category in channelData['category']:
                 channelCategoryElem = ChannelCategory(category['id'],category['name'])
                 listCategory.append(channelCategoryElem)
-        
-        channel = Channel(unicode(channelData['id']),channelData['name'],listFilters,listCategory) 
+
+        channel = Channel(unicode(channelData['id']),channelData['name'],listFilters,listCategory)
         listChannels.append(channel)
     return listChannels
 
 def get_elements_from_channel(idChannel,type,idFilter = '',idCategory = ''):
     middlePath = getSingleChannelPath(type)
-    urlPostFix = ''
+    urlPostFix = '/last'
     if(idFilter != ''):
-        urlPostFix += '/last/?filter=' + idFilter
+        urlPostFix += '/?filter=' + idFilter
     elif(idCategory != ''):
         urlPostFix += '/?category=' + idCategory
     urlToLoad = VVVVID_BASE_URL+middlePath + str(idChannel) + urlPostFix
@@ -113,7 +113,7 @@ def get_item_playable(idItem):
     itemPlayable.show_type = info['show_type']
     itemPlayable = get_seasons_for_item(itemPlayable)
     return itemPlayable
-    
+
 def get_seasons_for_item(itemPlayable):
     urlToLoad = VVVVID_BASE_URL+str(itemPlayable.show_id) + '/seasons'
     response = getJsonDataFromUrl(urlToLoad)
@@ -142,9 +142,9 @@ def get_seasons_for_item(itemPlayable):
                 prefix = ''
                 postfix= '?g=DRIEGSYPNOBI&hdcore=3.6.0&plugin=aasp-3.6.0.50.41'
                 if('http' not in episodeData['embed_info']):
-                    episode.stream_type = F4M_TYPE
+                    episode.stream_type = M3U_TYPE
                     prefix = 'http://wowzaondemand.top-ix.org/videomg/_definst_/mp4:'
-                    postfix = '/manifest.f4m'
+                    postfix = '/master.m3u8'
                 if('.m3u' in episodeData['embed_info']):
                     episode.stream_type = M3U_TYPE
                     prefix = ''
@@ -167,9 +167,3 @@ def getJsonDataFromUrl(customUrl):
     req.add_header('Cookie',cookie)
     response = urllib2.urlopen(req)
     return response
-    
-        
-
-        
-
-    
