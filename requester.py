@@ -1,4 +1,5 @@
 import requests
+import urllib
 
 from Channel import *
 from ChannelCategory import *
@@ -7,7 +8,12 @@ from ItemPlayableChannel import *
 from ItemPlayableSeason import *
 from SeasonEpisode import *
 
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:38.0) Gecko/20100101 Firefox/38.0'}
+HEADERS_ENCODED = urllib.urlencode(HEADERS)
+
+VVVVID_LOGIN_URL = "http://www.vvvvid.it/user/login"
 VVVVID_BASE_URL = "http://www.vvvvid.it/vvvvid/ondemand/"
+VVVVID_STATIC_URL = "http://static.vvvvid.it"
 ANIME_CHANNELS_PATH = "anime/channels"
 MOVIE_CHANNELS_PATH = "film/channels"
 SHOW_CHANNELS_PATH = "show/channels"
@@ -39,8 +45,9 @@ M3U_TYPE = '20'  # .m3u8 is the unicode version of .m3u
 
 # session singleton
 session = requests.Session()
-session.headers.update({'User-Agent':
-                            'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.8.1.14) Gecko/20080404 Firefox/2.0.0.14'})
+session.headers.update(HEADERS)
+
+conn_id = None
 
 
 def getChannelsPath(type):
@@ -62,7 +69,7 @@ def getSingleChannelPath(type):
 
 
 def get_section_channels(modeType):
-    channelUrl = VVVVID_BASE_URL + getChannelsPath(modeType)
+    channelUrl = urllib.basejoin(VVVVID_BASE_URL, getChannelsPath(modeType))
     data = getJsonDataFromUrl(channelUrl)
     channels = data['data']
     listChannels = []
@@ -71,10 +78,10 @@ def get_section_channels(modeType):
         path = ''
         listCategory = []
         listFilters = []
-        if (channelData.has_key('filter')):
+        if 'filter' in channelData:
             for filter in channelData['filter']:
                 listFilters.append(filter)
-        if (channelData.has_key('category')):
+        if 'category' in channelData:
             for category in channelData['category']:
                 channelCategoryElem = ChannelCategory(category['id'], category['name'])
                 listCategory.append(channelCategoryElem)
@@ -89,16 +96,17 @@ def get_elements_from_channel(idChannel, type, idFilter='', idCategory=''):
     middlePath = getSingleChannelPath(type)
     urlPostFix = '/last'
     while True:
-        if (idFilter != ''):
+        if idFilter != '':
             urlPostFix += '/?filter=' + idFilter
-        elif (idCategory != ''):
+        elif idCategory != '':
             urlPostFix += '/?category=' + idCategory
-        urlToLoad = VVVVID_BASE_URL + middlePath + str(idChannel) + urlPostFix
+        urlToLoad = urllib.basejoin(VVVVID_BASE_URL, middlePath + str(idChannel) + urlPostFix)
         data = getJsonDataFromUrl(urlToLoad)
         if 'data' not in data:
             break
         elements = data['data']
         for elementData in elements:
+            elementData['thumbnail'] = urllib.basejoin(VVVVID_STATIC_URL, elementData['thumbnail']) + '|' + HEADERS_ENCODED
             elementChannel = ElementChannel(unicode(elementData['id']), unicode(elementData['show_id']),
                                             elementData['title'], elementData['thumbnail'],
                                             elementData['ondemand_type'], elementData['show_type'])
@@ -108,12 +116,12 @@ def get_elements_from_channel(idChannel, type, idFilter='', idCategory=''):
 
 
 def get_item_playable(idItem):
-    urlToLoad = VVVVID_BASE_URL + idItem + '/info'
+    urlToLoad = urllib.basejoin(VVVVID_BASE_URL, idItem + '/info')
     data = getJsonDataFromUrl(urlToLoad)
     info = data['data']
     itemPlayable = ItemPlayableChannel()
     itemPlayable.title = info['title']
-    itemPlayable.thumb = info['thumbnail']
+    itemPlayable.thumb = urllib.basejoin(VVVVID_STATIC_URL, info['thumbnail']) + '|' + HEADERS_ENCODED
     itemPlayable.id = info['id']
     itemPlayable.show_id = info['show_id']
     itemPlayable.ondemand_type = info['ondemand_type']
@@ -123,7 +131,7 @@ def get_item_playable(idItem):
 
 
 def get_seasons_for_item(itemPlayable):
-    urlToLoad = VVVVID_BASE_URL + str(itemPlayable.show_id) + '/seasons'
+    urlToLoad = urllib.basejoin(VVVVID_BASE_URL, str(itemPlayable.show_id) + '/seasons')
     data = getJsonDataFromUrl(urlToLoad)
     result = data['data']
     itemPlayable.seasons = []
@@ -132,32 +140,30 @@ def get_seasons_for_item(itemPlayable):
         season.id = seasonData['show_id']
         season.show_id = seasonData['show_id']
         season.season_id = seasonData['season_id']
-        if (seasonData.has_key('name')):
+        if 'name' in seasonData:
             season.title = seasonData['name']
         else:
             season.title = itemPlayable.title
-        urlToLoadSeason = VVVVID_BASE_URL + str(itemPlayable.show_id) + '/season/' + str(season.season_id)
+        urlToLoadSeason = urllib.basejoin(VVVVID_BASE_URL, str(itemPlayable.show_id) + '/season/' + str(season.season_id))
         dataSeason = getJsonDataFromUrl(urlToLoadSeason)
         resultSeason = dataSeason['data']
         listEpisode = []
         for episodeData in resultSeason:
-            if (episodeData['video_id'] != '-1'):
+            if episodeData['video_id'] != '-1':
                 episode = SeasonEpisode()
                 episode.show_id = season.show_id
                 episode.season_id = season.season_id
-                prefix = ''
-                postfix = '?g=DRIEGSYPNOBI&hdcore=3.6.0&plugin=aasp-3.6.0.50.41'
-                if ('http' not in episodeData['embed_info']):
-                    episode.stream_type = M3U_TYPE
+                episode.stream_type = M3U_TYPE
+                postfix = '/master.m3u8'
+                if 'http' not in episodeData['embed_info']:
                     prefix = 'http://wowzaondemand.top-ix.org/videomg/_definst_/mp4:'
-                    postfix = '/master.m3u8'
-                if ('.m3u' in episodeData['embed_info']):
-                    episode.stream_type = M3U_TYPE
+                    episodeData['embed_info'] = episodeData['embed_info'].replace(' ', '%20')
+                else:
                     prefix = ''
-                    postfix = ''
-                episode.manifest = prefix + episodeData['embed_info'] + postfix
-                episode.title = ((episodeData['number'] + ' - ' + episodeData['title'])).encode('utf-8', 'replace')
-                episode.thumb = episodeData['thumbnail']
+                    episodeData['embed_info'] = episodeData['embed_info'].replace('/z/', '/i/').replace('/manifest.f4m', '')
+                episode.manifest = prefix + episodeData['embed_info'] + postfix + '|' + HEADERS_ENCODED
+                episode.title = (episodeData['number'] + ' - ' + episodeData['title']).encode('utf-8', 'replace')
+                episode.thumb = urllib.basejoin(VVVVID_STATIC_URL, episodeData['thumbnail']) + '|' + HEADERS_ENCODED
                 listEpisode.append(episode)
         season.episodes = listEpisode
         itemPlayable.seasons.append(season)
@@ -165,5 +171,15 @@ def get_seasons_for_item(itemPlayable):
 
 
 def getJsonDataFromUrl(customUrl):
+    global conn_id
+    if conn_id is None:
+        response = session.get(VVVVID_LOGIN_URL)
+        conn_id = response.json()['data']['conn_id']
+
+    if '?' in customUrl:
+        customUrl += '&conn_id=%s' % conn_id
+    else:
+        customUrl += '?conn_id=%s' % conn_id
+
     response = session.get(customUrl)
     return response.json()
