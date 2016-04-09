@@ -1,4 +1,6 @@
+import random
 import requests
+import string
 import urllib
 
 from Channel import *
@@ -8,10 +10,15 @@ from ItemPlayableChannel import *
 from ItemPlayableSeason import *
 from SeasonEpisode import *
 
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:38.0) Gecko/20100101 Firefox/38.0'}
+HEADERS = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25',
+           'Content-Type': 'application/json'}
 HEADERS_ENCODED = urllib.urlencode(HEADERS)
+LOGIN_POST_DATA = '{"data":{},"action":"login","email":"%s","password":"%s","facebookParams":"","mobile":false,"hls":true,"flash":false,"isIframe":false,"login_type":"force","reminder":true,"conn_id":"%s"}'
 
-VVVVID_LOGIN_URL = "http://www.vvvvid.it/user/login"
+USERNAME = ""
+PASSWORD = ""
+
+VVVVID_LOGIN_URL = "https://www.vvvvid.it/user/login"
 VVVVID_BASE_URL = "http://www.vvvvid.it/vvvvid/ondemand/"
 VVVVID_STATIC_URL = "http://static.vvvvid.it"
 ANIME_CHANNELS_PATH = "anime/channels"
@@ -154,13 +161,14 @@ def get_seasons_for_item(itemPlayable):
                 episode.show_id = season.show_id
                 episode.season_id = season.season_id
                 episode.stream_type = M3U_TYPE
-                postfix = '/master.m3u8'
                 if 'http' not in episodeData['embed_info']:
                     prefix = 'http://wowzaondemand.top-ix.org/videomg/_definst_/mp4:'
+                    postfix = '/master.m3u8'
                     episodeData['embed_info'] = episodeData['embed_info'].replace(' ', '%20')
                 else:
                     prefix = ''
-                    episodeData['embed_info'] = episodeData['embed_info'].replace('/z/', '/i/').replace('/manifest.f4m', '')
+                    postfix = ''
+                    episodeData['embed_info'] = episodeData['embed_info'].replace('Dynit2', 'Dynit')
                 episode.manifest = prefix + episodeData['embed_info'] + postfix + '|' + HEADERS_ENCODED
                 episode.title = (episodeData['number'] + ' - ' + episodeData['title']).encode('utf-8', 'replace')
                 episode.thumb = urllib.basejoin(VVVVID_STATIC_URL, episodeData['thumbnail']) + '|' + HEADERS_ENCODED
@@ -173,8 +181,8 @@ def get_seasons_for_item(itemPlayable):
 def getJsonDataFromUrl(customUrl):
     global conn_id
     if conn_id is None:
-        response = session.get(VVVVID_LOGIN_URL)
-        conn_id = response.json()['data']['conn_id']
+        conn_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(12))
+        session.post(VVVVID_LOGIN_URL, data=LOGIN_POST_DATA % (USERNAME, PASSWORD, conn_id))
 
     if '?' in customUrl:
         customUrl += '&conn_id=%s' % conn_id
