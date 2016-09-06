@@ -10,7 +10,7 @@ from ItemPlayableChannel import *
 from ItemPlayableSeason import *
 from SeasonEpisode import *
 
-HEADERS = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25',
+HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.89 Safari/537.36',
            'Content-Type': 'application/json'}
 HEADERS_ENCODED = urllib.urlencode(HEADERS)
 LOGIN_POST_DATA = '{"data":{},"action":"login","email":"%s","password":"%s","facebookParams":"","mobile":false,"hls":true,"flash":false,"isIframe":false,"login_type":"force","reminder":true,"conn_id":"%s"}'
@@ -19,8 +19,9 @@ USERNAME = ""
 PASSWORD = ""
 
 VVVVID_LOGIN_URL = "https://www.vvvvid.it/user/login"
-VVVVID_BASE_URL = "http://www.vvvvid.it/vvvvid/ondemand/"
-VVVVID_STATIC_URL = "http://static.vvvvid.it"
+VVVVID_KENC = "https://www.vvvvid.it/kenc?action=kt&"
+VVVVID_BASE_URL = "https://www.vvvvid.it/vvvvid/ondemand/"
+VVVVID_STATIC_URL = "https://static.vvvvid.it"
 ANIME_CHANNELS_PATH = "anime/channels"
 MOVIE_CHANNELS_PATH = "film/channels"
 SHOW_CHANNELS_PATH = "show/channels"
@@ -161,14 +162,18 @@ def get_seasons_for_item(itemPlayable):
                 episode.show_id = season.show_id
                 episode.season_id = season.season_id
                 episode.stream_type = M3U_TYPE
+                episodeData['embed_info'] = decode_embed_info(episodeData['embed_info'])
                 if 'http' not in episodeData['embed_info']:
-                    prefix = 'http://wowzaondemand.top-ix.org/videomg/_definst_/mp4:'
-                    postfix = '/master.m3u8'
+                    prefix = 'http://194.116.73.48/videomg/_definst_/mp4:'
+                    postfix = '/playlist.m3u8'
                     episodeData['embed_info'] = episodeData['embed_info'].replace(' ', '%20')
                 else:
                     prefix = ''
                     postfix = ''
-                    episodeData['embed_info'] = episodeData['embed_info'].replace('Dynit2', 'Dynit')
+                    if 'video/kenc' in episodeData['video_type']:
+                        episodeData['embed_info'] = episodeData['embed_info'].replace('http', 'https')
+                        kenc_data = getJsonDataFromUrl(VVVVID_KENC + urllib.urlencode({'url': episodeData['embed_info']}))
+                        episodeData['embed_info'] += '?' + decode_embed_info(kenc_data['message'])
                 episode.manifest = prefix + episodeData['embed_info'] + postfix + '|' + HEADERS_ENCODED
                 episode.title = (episodeData['number'] + ' - ' + episodeData['title']).encode('utf-8', 'replace')
                 episode.thumb = urllib.basejoin(VVVVID_STATIC_URL, episodeData['thumbnail']) + '|' + HEADERS_ENCODED
@@ -191,3 +196,51 @@ def getJsonDataFromUrl(customUrl):
 
     response = session.get(customUrl)
     return response.json()
+
+
+def decode_embed_info(h):
+    def f(m):
+        l = []
+        o = 0
+        b = False
+        len_m = len(m)
+        while not b and o < len_m:
+            n = m[o] << 2
+            o += 1
+            k = -1
+            j = -1
+            if o < len_m:
+                n += m[o] >> 4
+                o += 1
+                if o < len_m:
+                    k = (m[o - 1] << 4) & 255
+                    k += m[o] >> 2
+                    o += 1
+                    if o < len_m:
+                        j = (m[o - 1] << 6) & 255
+                        j += m[o]
+                        o += 1
+                    else:
+                        b = True
+                else:
+                    b = True
+            else:
+                b = True
+            l.append(n)
+            if k != -1:
+                l.append(k)
+            if j != -1:
+                l.append(j)
+        return l
+
+    g = 'MNOPIJKL89+/4567UVWXQRSTEFGHABCDcdefYZabstuvopqr0123wxyzklmnghij'
+    c = [g.index(e) for e in h]
+    len_c = len(c)
+    e = len_c * 2 - 1
+    while e >= 0:
+        a = c[e % len_c] ^ c[(e + 1) % len_c]
+        c[e % len_c] = a
+        e -= 1
+    c = f(c)
+    d = ''.join([chr(e) for e in c])
+    return d
