@@ -164,7 +164,7 @@ def get_seasons_for_item(itemPlayable):
                 episode.stream_type = M3U_TYPE
                 episodeData['embed_info'] = decode_embed_info(episodeData['embed_info'])
                 if 'http' not in episodeData['embed_info']:
-                    prefix = 'http://194.116.73.48/videomg/_definst_/mp4:'
+                    prefix = 'http://sb.top-ix.org/videomg/_definst_/mp4:'
                     postfix = '/playlist.m3u8'
                     episodeData['embed_info'] = episodeData['embed_info'].replace(' ', '%20')
                 else:
